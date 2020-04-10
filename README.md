@@ -1,9 +1,11 @@
 # HRPT Decoder
 
-A C++ program to decode HRPT data from various satellites, currently only supporting NOAA.
+A C++ program to decode HRPT data from various satellites, currently only supporting NOAA (output from GNU Radio). It aims at being simple and light while still providing all the features needed.
 
 ### Usage
+*Output off hrpt_decoder --help*
 
+```
 USAGE: 
 
    ./build/hrpt_decoder  {-c <channel>|-f} [-e <equalization>] [-S] -o
@@ -46,3 +48,4 @@ Where:
 
 
    HRPT Decoder by Aang23
+```
