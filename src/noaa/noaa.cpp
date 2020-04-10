@@ -75,7 +75,7 @@ cimg_library::CImg<unsigned short> NOAADecoder::decodeChannel(int channel)
             // Compute pixel position, read, and put into the image buffer
             uint16_t pixel, pos;
             pos = channel - 1 + pixel_pos * HRPT_NUM_CHANNELS;
-            pixel = line_buffer[pos] & 0x03ff;
+            pixel = line_buffer[pos];
             imageBuffer[frame][pixel_pos] = pixel * 60;
         }
     }
