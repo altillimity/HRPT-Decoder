@@ -21,4 +21,6 @@ public:
     void processHRPT();
     // Function used to decode a choosen channel
     cimg_library::CImg<unsigned short> decodeChannel(int channel);
+    // Return total fram count
+    int getTotalFrameCount();
 };

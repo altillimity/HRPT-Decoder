@@ -55,13 +55,15 @@ int main(int argc, char *argv[])
 
     // Variable we need watever we do
     std::ifstream input_file(valueInput.getValue());
-    cimg_library::CImg<unsigned short> final_image(2048, 217, 1, 3);
+    cimg_library::CImg<unsigned short> final_image;
 
     if (satelliteArg.getValue() == "NOAA")
     {
 
         NOAADecoder decoder(input_file);
         decoder.processHRPT();
+
+        final_image = cimg_library::CImg<unsigned short>(2048, decoder.getTotalFrameCount(), 1, 3);
 
         if (optionFalseColor.getValue())
         {
@@ -73,7 +75,8 @@ int main(int argc, char *argv[])
             final_image.draw_image(0, 0, 0, 1, img2);
             final_image.draw_image(0, 0, 0, 2, img1);
         }
-        else {
+        else
+        {
             final_image = decoder.decodeChannel(valueChannel.getValue());
         }
     }

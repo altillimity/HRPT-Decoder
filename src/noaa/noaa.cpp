@@ -83,3 +83,8 @@ cimg_library::CImg<unsigned short> NOAADecoder::decodeChannel(int channel)
     // Build an image and return it
     return cimg_library::CImg<unsigned short>((unsigned short *)&imageBuffer[0][0], HRPT_SCAN_WIDTH, total_frame_count);
 }
+
+// Return total fram count
+int NOAADecoder::getTotalFrameCount() {
+    return total_frame_count;
+}
