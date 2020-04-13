@@ -58,8 +58,9 @@ cimg_library::CImg<unsigned short> NOAADecoder::decodeChannel(int channel)
     uint16_t line_buffer[HRPT_SCAN_SIZE];
     // Reset our ifstream
     input_file.clear();
+
     // Complete image buffer
-    unsigned short imageBuffer[total_frame_count][HRPT_SCAN_WIDTH];
+    unsigned short *imageBuffer = new unsigned short [total_frame_count * HRPT_SCAN_WIDTH];
 
     // Loop through all frames
     for (int frame = 0; frame < total_frame_count; frame++)
@@ -76,15 +77,18 @@ cimg_library::CImg<unsigned short> NOAADecoder::decodeChannel(int channel)
             uint16_t pixel, pos;
             pos = channel - 1 + pixel_pos * HRPT_NUM_CHANNELS;
             pixel = line_buffer[pos];
-            imageBuffer[frame][pixel_pos] = pixel * 60;
+            imageBuffer[frame*HRPT_SCAN_WIDTH +pixel_pos] = pixel * 60;
         }
     }
 
     // Build an image and return it
-    return cimg_library::CImg<unsigned short>((unsigned short *)&imageBuffer[0][0], HRPT_SCAN_WIDTH, total_frame_count);
+    cimg_library::CImg<unsigned short> channelImage(&imageBuffer[0], HRPT_SCAN_WIDTH, total_frame_count);
+    delete[] imageBuffer; // Don't forget to free up the heap!
+    return channelImage;
 }
 
 // Return total fram count
-int NOAADecoder::getTotalFrameCount() {
+int NOAADecoder::getTotalFrameCount()
+{
     return total_frame_count;
 }
