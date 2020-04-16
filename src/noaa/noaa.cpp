@@ -70,7 +70,7 @@ cimg_library::CImg<unsigned short> NOAADecoder::decodeChannel(int channel)
         input_file.seekg(linePos);
         input_file.read((char *)line_buffer, HRPT_SCAN_SIZE * 2);
 
-        // Lopp through all pixels of the current line
+        // Loop through all pixels of the current line
         for (int pixel_pos = 0; pixel_pos < HRPT_SCAN_WIDTH; pixel_pos++)
         {
             // Compute pixel position, read, and put into the image buffer

@@ -1,32 +1,26 @@
 #include "meteor.h"
 #include "manchester.h"
 #include <iostream>
+#include <cstdio>
 
 // Total world count
 const int HRPT_TRANSPORT_SIZE = 1024;
 // Channel count
-const int HRPT_NUM_CHANNELS = 5;
+const int HRPT_NUM_CHANNELS = 6;
 // Single image scan word size
 const int HRPT_SCAN_WIDTH = 1572;
-// Total word size from all channels
-const int HRPT_SCAN_SIZE = HRPT_SCAN_WIDTH * HRPT_NUM_CHANNELS;
-// Image words position from frame sync
-const int HRPT_IMAGE_START = 750;
 // Sync marker word size
-const int HRPT_SYNC_SIZE = 6;
+const int HRPT_SYNC_SIZE = 4;
 // Sync marker
-static const uint16_t HRPT_SYNC[HRPT_SYNC_SIZE] = {0x0284, 0x016F, 0x035C, 0x019D, 0x020F, 0x0095};
+static const uint8_t HRPT_SYNC[HRPT_SYNC_SIZE] = {0x1A, 0xCF, 0xFC, 0x1D};
+static const uint32_t HRPT_SYNC_BITS = HRPT_SYNC[0] << 24 | HRPT_SYNC[1] << 16 | HRPT_SYNC[2] << 8 | HRPT_SYNC[3];
+// MSU-MR Sync marker
+const int HRPT_SYNC_SIZE_MSU_MR = 8;
+static const uint16_t HRPT_SYNC_MSU_MR[HRPT_SYNC_SIZE_MSU_MR] = {0x0284, 0x016F, 0x035C, 0x019D, 0x020F, 0x0095};
 
 // Constructor
 METEORDecoder::METEORDecoder(std::ifstream &input) : input_file{input}
 {
-}
-
-void bin(uint32_t n)
-{
-    uint32_t i;
-    for (i = 1 << 31; i > 0; i = i / 2)
-        (n & i) ? printf("1") : printf("0");
 }
 
 // Returns the asked bit!
@@ -36,6 +30,7 @@ inline bool getBit(T data, int bit)
     return (data >> bit) & 1;
 }
 
+// Compare 2 32-bits values bit per bit
 int checkSyncMarker(uint32_t marker, uint32_t totest)
 {
     int errors = 0;
@@ -50,6 +45,7 @@ int checkSyncMarker(uint32_t marker, uint32_t totest)
     return errors;
 }
 
+// Takes 8 bits from a vector and makes a byte
 uint8_t convertBitsToByteAtPos(std::vector<bool> &bitvector, long pos)
 {
     uint8_t value = bitvector[pos] << 7 |
@@ -67,32 +63,28 @@ uint8_t convertBitsToByteAtPos(std::vector<bool> &bitvector, long pos)
 void METEORDecoder::processHRPT()
 {
     // Manchester decoding
-    uint8_t ch[2];
     std::cout << "Performing Manchester decoding... " << '\n';
-    std::ofstream output_file("temp.man", std::ios::binary);
+    std::ofstream output_file("temp.man", std::ios::binary); // Open our output file
+    uint8_t ch[2];                                           // We need to read 2 bytes at once
     while (input_file.read((char *)ch, sizeof(ch)))
         output_file.put((char)manchester_decode(ch[1], ch[0]));
     std::cout << "Done!" << '\n';
     output_file.close();
     input_file.close();
 
-    uint8_t ch2;
-    int i = 0;
+    // Transport frame sync.
+    input_file = std::ifstream("temp.man"); // Now we'e working Manchester-free
 
-    // Transport frame sync. Implementation of http://www.sat.cc.ua/data/CADU%20Frame%20Synchro.pdf
-    const int HRPT_SYNC_SIZE = 4;
-    static const uint8_t HRPT_SYNC[HRPT_SYNC_SIZE] = {0x1A, 0xCF, 0xFC, 0x1D};
-
-    uint32_t HRPT_SYNC_BITS = HRPT_SYNC[0] << 24 | HRPT_SYNC[1] << 16 | HRPT_SYNC[2] << 8 | HRPT_SYNC[3];
-
-    input_file = std::ifstream("temp.man");
-
+    // Multiple variables we'll need
     int frame_count = 0;
     int thresold_state = 0;
     std::vector<long> frame_starts;
 
-    std::cout << "Searching for synchronization markers..." << '\n';
+    std::cout << "Reading file..." << '\n';
 
+    // This may seem dumb at first, but considering decoded files are not several gigabytes... Working with a
+    // vector eases the process a lot, and using RAM is also supposedly faster?
+    // So here I'm read the entire file bit-per-bit into a vector of bools!
     uint8_t bufferByte;
     std::vector<bool> fileContentBin;
     while (input_file.get((char &)bufferByte))
@@ -104,15 +96,20 @@ void METEORDecoder::processHRPT()
         }
     }
 
+    std::cout << "Searching for synchronization markers..." << '\n';
+
+    // Searching for sync markers... Implementation of http://www.sat.cc.ua/data/CADU%20Frame%20Synchro.pdf
+    // NOTE : Needs tuning? Is the implementation perfect? (Slight changes yield more frames)
     uint32_t bitBuffer;
     int bitsToIncrement = 1;
     int errors = 0;
-    int sep_errors;
+    int sep_errors = 0;
     int good = 0;
-    int state_2_bits_count;
+    int state_2_bits_count = 0;
     int last_state = 0;
     for (long bitPos = 0; bitPos < fileContentBin.size() - 32; bitPos += bitsToIncrement)
     {
+        // Well... Easier to work with a 32-bit value here... Needs to be build from the ground up.
         bitBuffer = fileContentBin[bitPos] << 31 |
                     fileContentBin[bitPos + 1] << 30 |
                     fileContentBin[bitPos + 2] << 29 |
@@ -146,6 +143,7 @@ void METEORDecoder::processHRPT()
                     fileContentBin[bitPos + 30] << 1 |
                     fileContentBin[bitPos + 31];
 
+        // State 0 : Searched bit-per-bit for a perfect sync marker. If one is found, we jump to state 6!
         if (thresold_state == 0)
         {
             if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
@@ -159,6 +157,10 @@ void METEORDecoder::processHRPT()
                 good = 0;
             }
         }
+        // State 6 : Each header is expect 1024 bytes away. Only 6 mistmatches tolerated.
+        // If 5 consecutive good frames are found, we hop to state 22, though, 5 consecutive
+        // errors (here's why errors is reset each time a frame is good) means reset to state 0
+        // 2 frame errors pushes us to state 2
         else if (thresold_state == 6)
         {
             if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
@@ -200,6 +202,7 @@ void METEORDecoder::processHRPT()
                 }
             }
         }
+        // State 2 : Goes back to bit-per-bit syncing... 3 frame scanned and we got back to state 0, 1 good and back to 6!
         else if (thresold_state == 2)
         {
             if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
@@ -227,6 +230,9 @@ void METEORDecoder::processHRPT()
                 }
             }
         }
+        // State 3 : We assume perfect lock and allow very high mismatchs.
+        // 1 error and back to state 6
+        // Note : Lowering the thresold seems to yield better of a sync
         else if (thresold_state == 22)
         {
             if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
@@ -242,10 +248,6 @@ void METEORDecoder::processHRPT()
                 thresold_state = 6;
             }
         }
-        /*if(last_state != thresold_state) {
-            std::cout << thresold_state << std::endl;
-            last_state = thresold_state;
-        }*/
     }
 
     std::cout << "Found " << frame_count << " valid sync markers!" << '\n';
@@ -255,6 +257,8 @@ void METEORDecoder::processHRPT()
     output_file = std::ofstream("temp.msumr", std::ios::binary);
     input_file.clear();
 
+    // Extracing MSU-MR data! Since we probably aren't in sync with byte spacing...
+    // Still bit-per-bit and based on our frame starts saved earlier
     for (long bitPos : frame_starts)
     {
         int msu_mr_data_pos = bitPos + 22 * 8;
@@ -286,43 +290,42 @@ void METEORDecoder::processHRPT()
         }
     }
 
+    // Some cleanup... And delete unused files now! Goodbye Manchester!
     output_file.close();
     input_file.close();
+    std::remove("temp.man");
 
     // MSU-MR Sync
     input_file.open("temp.msumr");
 
-    const int HRPT_MSU_SYNC_SIZE = 8;
-    static const uint8_t HRPT_MSU_SYNC[HRPT_MSU_SYNC_SIZE] = {2, 24, 167, 163, 146, 221, 154, 191};
+    int i = 0;
+    uint8_t ch2;
 
-    i = 0;
-
+    // Here we can check for valid header only...
+    // NOTE : Sync machine system? Error thresold?
     long msu_file_byte_size = 0;
     while (input_file.get((char &)ch2))
     {
-        if (ch2 == HRPT_MSU_SYNC[i])
+        if (ch2 == HRPT_SYNC_MSU_MR[i])
             i++;
         else
             i = 0;
 
         // If all 6 matched, we got a frame!
-        if (i == HRPT_MSU_SYNC_SIZE)
+        if (i == HRPT_SYNC_SIZE_MSU_MR)
         {
-            //std::cout << "FRAME" << '\n';
             // Reset i for next frame
             i = 0;
             total_mru_frame_count++;
-            msu_frame_starts.push_back((long)input_file.tellg() - 8);
+            msu_frame_starts.push_back((long)input_file.tellg() - HRPT_SYNC_SIZE_MSU_MR);
             if (mru_first_frame_pos == -1)
-                mru_first_frame_pos = (long)input_file.tellg() - 8;
+                mru_first_frame_pos = (long)input_file.tellg() - HRPT_SYNC_SIZE_MSU_MR;
         }
         msu_file_byte_size++;
     }
 
-    /*for (int k = 0; k < msu_frame_starts.size(); k++)
-            std::cout << msu_frame_starts[k + 1] - msu_frame_starts[k] << std::endl;*/
-
     std::cout << "Found " << total_mru_frame_count << " valid MSU-MR sync markers!" << '\n';
+    input_file.close();
 }
 
 // Function used to decode a choosen channel
@@ -336,11 +339,12 @@ cimg_library::CImg<unsigned short> METEORDecoder::decodeChannel(int channel)
     for (/*int msu_frame_nm = 0; msu_frame_nm < ((msu_file_byte_size - mru_first_frame_pos) / 11850); msu_frame_nm++*/ long frame_pos : msu_frame_starts)
     {
         //long frame_pos = mru_first_frame_pos + (11850 * msu_frame_nm);
+        /// Go at the beggining of the frame
         uint8_t msumr_frame_buffer[11850];
         input_file.seekg(frame_pos);
         input_file.read((char *)msumr_frame_buffer, sizeof(msumr_frame_buffer));
 
-        uint16_t line_buffer[1572];
+        uint16_t line_buffer[HRPT_SCAN_WIDTH];
 
         // 393 byte per channel
         for (int l = 0; l < 393; l++)
@@ -361,10 +365,10 @@ cimg_library::CImg<unsigned short> METEORDecoder::decodeChannel(int channel)
             pixel4 = ((pixel_buffer_4[3] % 4) << 8) | pixel_buffer_4[4];
 
             int currentImagePixelPos = l * 4;
-            imageBuffer[linecount * 1572 + currentImagePixelPos] = pixel1 * 60;
-            imageBuffer[linecount * 1572 + currentImagePixelPos + 1] = pixel2 * 60;
-            imageBuffer[linecount * 1572 + currentImagePixelPos + 2] = pixel3 * 60;
-            imageBuffer[linecount * 1572 + currentImagePixelPos + 3] = pixel4 * 60;
+            imageBuffer[linecount * HRPT_SCAN_WIDTH + currentImagePixelPos] = pixel1 * 60;
+            imageBuffer[linecount * HRPT_SCAN_WIDTH + currentImagePixelPos + 1] = pixel2 * 60;
+            imageBuffer[linecount * HRPT_SCAN_WIDTH + currentImagePixelPos + 2] = pixel3 * 60;
+            imageBuffer[linecount * HRPT_SCAN_WIDTH + currentImagePixelPos + 3] = pixel4 * 60;
         }
         linecount++;
     }
