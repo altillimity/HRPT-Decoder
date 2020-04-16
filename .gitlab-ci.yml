@@ -1,4 +1,4 @@
-build:
+build-deb:
   image: debian:buster
   stage: build
   before_script:
@@ -13,3 +13,39 @@ build:
   artifacts:
     paths: 
       - build/*.deb
+build-win:
+  image: debian:buster
+  stage: build
+  before_script:
+    - apt-get update > /dev/null
+    - apt-get install -y build-essential cmake mingw-w64-common mingw-w64 mingw-w64-tools mingw-w64-x86-64-dev git > /dev/null
+    - mkdir build
+    - cd build
+    - mkdir /tmp/winenv
+    - git clone https://github.com/madler/zlib --depth 1
+    - cd zlib
+    - mkdir build
+    - cd build
+    - cmake -DCMAKE_TOOLCHAIN_FILE=../../../cmake/toolchain-mingw32.cmake -DCMAKE_INSTALL_PREFIX=/tmp/winenv ..
+    - make -j4
+    - make install
+    - cd ../..
+    - git clone https://github.com/glennrp/libpng --depth 1
+    - cd libpng
+    - mkdir build
+    - cd build
+    - cmake -DCMAKE_TOOLCHAIN_FILE=../../../cmake/toolchain-mingw32.cmake -DCMAKE_INSTALL_PREFIX=/tmp/winenv ..
+    - make -j4
+    - make install
+    - cd ../..
+    - cp /tmp/winenv/bin/libpng*.dll .
+    - cp /tmp/winenv/bin/libzlib.dll .
+    - cp /usr/lib/gcc/x86_64-w64-mingw32/*-win32/libgcc_s_seh*.dll .
+    - cp /usr/lib/gcc/x86_64-w64-mingw32/*-win32/libstdc++*.dll .
+  script:
+    - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain-mingw32.cmake -DCMAKE_INSTALL_PREFIX=/tmp/winenv ..
+    - make -j4
+  artifacts:
+    paths: 
+      - build/*.exe
+      - build/*.dll
