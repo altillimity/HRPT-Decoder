@@ -322,7 +322,6 @@ void METEORDecoder::processHRPT()
     }
 
     std::cout << "Found " << total_mru_frame_count << " valid MSU-MR sync markers!" << '\n';
-    input_file.close();
 }
 
 // Function used to decode a choosen channel
