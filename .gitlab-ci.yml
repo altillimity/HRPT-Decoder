@@ -1,5 +1,5 @@
 build:
-  image: debian:sid
+  image: debian:buster
   stage: build
   before_script:
     - apt-get update
