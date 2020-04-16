@@ -6,6 +6,7 @@
 #include "CImg.h"
 
 #include "noaa/noaa.h"
+#include "meteor/meteor.h"
 
 int main(int argc, char *argv[])
 {
@@ -72,6 +73,28 @@ int main(int argc, char *argv[])
             cimg_library::CImg<unsigned short> img3 = decoder.decodeChannel(3);
 
             final_image.draw_image(0, 0, 0, 0, img2);
+            final_image.draw_image(0, 0, 0, 1, img2);
+            final_image.draw_image(0, 0, 0, 2, img1);
+        }
+        else
+        {
+            final_image = decoder.decodeChannel(valueChannel.getValue());
+        }
+    }
+    else if (satelliteArg.getValue() == "METEOR")
+    {
+        METEORDecoder decoder(input_file);
+        decoder.processHRPT();
+
+        final_image = cimg_library::CImg<unsigned short>(1572, decoder.getTotalFrameCount(), 1, 3);
+
+        if (optionFalseColor.getValue())
+        {
+            cimg_library::CImg<unsigned short> img1 = decoder.decodeChannel(1);
+            cimg_library::CImg<unsigned short> img2 = decoder.decodeChannel(2);
+            cimg_library::CImg<unsigned short> img3 = decoder.decodeChannel(3);
+
+            final_image.draw_image(0, 0, 0, 0, img3);
             final_image.draw_image(0, 0, 0, 1, img2);
             final_image.draw_image(0, 0, 0, 2, img1);
         }
