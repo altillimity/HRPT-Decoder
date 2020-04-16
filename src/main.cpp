@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
 
     if (satelliteArg.getValue() == "NOAA")
     {
+        std::cout << "Decoding NOAA!" << std::endl;
 
         NOAADecoder decoder(input_file);
         decoder.processHRPT();
