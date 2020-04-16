@@ -52,6 +52,8 @@ Where:
 
 ### Installation
 
-If you are using a Debian-based Linux distribution (eg. Debian, Ubuntu, Linux Mint, Devuan, ...), you can use the pre-builts .deb files you can download [here](https://gitlab.altillimity.com/altillimity/hrpt-decoder/-/jobs/artifacts/master/download?job=build). Extract the content of this file and run.
+If you are using a Debian-based Linux distribution (eg. Debian, Ubuntu, Linux Mint, Devuan, ...), you can use the pre-builts .deb files you can download [here](https://gitlab.altillimity.com/altillimity/hrpt-decoder/-/jobs/artifacts/master/download?job=build-deb). Extract the content of this file and run.
 ```sudo dpkg -i hrpt-decoder*.deb```
 You'll need to have libpng installed on your system.
+
+Windows builds are also available, shipping as a standalone .exe + libraries as .dlls. You can download the latest build [here](https://gitlab.altillimity.com/altillimity/hrpt-decoder/-/jobs/artifacts/master/download?job=build-win).
