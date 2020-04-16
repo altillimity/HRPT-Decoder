@@ -1,4 +1,5 @@
 #include "noaa.h"
+#include <iostream>
 
 // Total world count
 const int HRPT_BLOCK_SIZE = 11090;
@@ -24,6 +25,8 @@ NOAADecoder::NOAADecoder(std::ifstream &input) : input_file{input}
 void NOAADecoder::processHRPT()
 {
     // Frame sync detection... Perfect markers everywhere so easy enough!
+    std::cout << "Detecting synchronization markers..." << std::endl;
+
     uint8_t ch[2];
     uint16_t data;
     int i = 0;
@@ -49,6 +52,7 @@ void NOAADecoder::processHRPT()
                 first_frame_pos = (long)input_file.tellg() - 12;
         }
     }
+    std::cout << "Done! Found " << total_frame_count << " sync markers!" << std::endl;
 }
 
 // Function used to decode a choosen channel

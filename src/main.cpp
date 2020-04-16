@@ -61,6 +61,8 @@ int main(int argc, char *argv[])
     if (satelliteArg.getValue() == "NOAA")
     {
         // NOAA decoding!
+        std::cout << "Decoding NOAA!" << std::endl;
+
         NOAADecoder decoder(input_file);
         decoder.processHRPT();
 
@@ -84,6 +86,8 @@ int main(int argc, char *argv[])
     else if (satelliteArg.getValue() == "METEOR")
     {
         // METEOR Decoding! MN2x
+        std::cout << "Decoding METEOR!" << std::endl;
+
         METEORDecoder decoder(input_file);
         decoder.processHRPT();
 
