@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     }
 
     // Variable we need watever we do
-    std::ifstream input_file(valueInput.getValue());
+    std::ifstream input_file(valueInput.getValue(), std::ios::binary);
     cimg_library::CImg<unsigned short> final_image;
 
     if (satelliteArg.getValue() == "NOAA")
