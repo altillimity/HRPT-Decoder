@@ -73,7 +73,7 @@ void METEORDecoder::processHRPT()
     input_file.close();
 
     // Transport frame sync.
-    input_file = std::ifstream("temp.man"); // Now we'e working Manchester-free
+    input_file = std::ifstream("temp.man", std::ios::binary); // Now we'e working Manchester-free
 
     // Multiple variables we'll need
     int frame_count = 0;
@@ -295,7 +295,7 @@ void METEORDecoder::processHRPT()
     input_file.close();
 
     // MSU-MR Sync
-    input_file.open("temp.msumr");
+    input_file.open("temp.msumr", std::ios::binary);
 
     int i = 0;
     uint8_t ch2;
