@@ -14,9 +14,10 @@ private:
     int total_frame_count = 0;
     // First frame position in file
     long first_frame_pos = -1;
+
 public:
     // Constructor
-    NOAADecoder(std::ifstream& input);
+    NOAADecoder(std::ifstream &input);
     // Function doing all the pre-frame work, that is, everything you'd need to do before being ready to read an image
     void processHRPT();
     // Function used to decode a choosen channel

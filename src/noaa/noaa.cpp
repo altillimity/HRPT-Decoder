@@ -23,7 +23,7 @@ NOAADecoder::NOAADecoder(std::ifstream &input) : input_file{input}
 // Function doing all the pre-frame work, that is, everything you'd need to do before being ready to read an image
 void NOAADecoder::processHRPT()
 {
-    // Frame sync detection
+    // Frame sync detection... Perfect markers everywhere so easy enough!
     uint8_t ch[2];
     uint16_t data;
     int i = 0;
@@ -59,8 +59,8 @@ cimg_library::CImg<unsigned short> NOAADecoder::decodeChannel(int channel)
     // Reset our ifstream
     input_file.clear();
 
-    // Complete image buffer
-    unsigned short *imageBuffer = new unsigned short [total_frame_count * HRPT_SCAN_WIDTH];
+    // Large passes are too good for the stack to take it...
+    unsigned short *imageBuffer = new unsigned short[total_frame_count * HRPT_SCAN_WIDTH];
 
     // Loop through all frames
     for (int frame = 0; frame < total_frame_count; frame++)
@@ -77,7 +77,7 @@ cimg_library::CImg<unsigned short> NOAADecoder::decodeChannel(int channel)
             uint16_t pixel, pos;
             pos = channel - 1 + pixel_pos * HRPT_NUM_CHANNELS;
             pixel = line_buffer[pos];
-            imageBuffer[frame*HRPT_SCAN_WIDTH +pixel_pos] = pixel * 60;
+            imageBuffer[frame * HRPT_SCAN_WIDTH + pixel_pos] = pixel * 60;
         }
     }
 

@@ -290,10 +290,9 @@ void METEORDecoder::processHRPT()
         }
     }
 
-    // Some cleanup... And delete unused files now! Goodbye Manchester!
+    // Some cleanup...
     output_file.close();
     input_file.close();
-    std::remove("temp.man");
 
     // MSU-MR Sync
     input_file.open("temp.msumr");
@@ -303,7 +302,6 @@ void METEORDecoder::processHRPT()
 
     // Here we can check for valid header only...
     // NOTE : Sync machine system? Error thresold?
-    long msu_file_byte_size = 0;
     while (input_file.get((char &)ch2))
     {
         if (ch2 == HRPT_SYNC_MSU_MR[i])
@@ -321,7 +319,6 @@ void METEORDecoder::processHRPT()
             if (mru_first_frame_pos == -1)
                 mru_first_frame_pos = (long)input_file.tellg() - HRPT_SYNC_SIZE_MSU_MR;
         }
-        msu_file_byte_size++;
     }
 
     std::cout << "Found " << total_mru_frame_count << " valid MSU-MR sync markers!" << '\n';
@@ -333,12 +330,12 @@ cimg_library::CImg<unsigned short> METEORDecoder::decodeChannel(int channel)
 {
     input_file.clear();
 
+    // Large passes are too good for the stack to take it...
     unsigned short *imageBuffer = new unsigned short[total_mru_frame_count * HRPT_SCAN_WIDTH];
 
     long linecount = 0;
-    for (/*int msu_frame_nm = 0; msu_frame_nm < ((msu_file_byte_size - mru_first_frame_pos) / 11850); msu_frame_nm++*/ long frame_pos : msu_frame_starts)
+    for (long frame_pos : msu_frame_starts)
     {
-        //long frame_pos = mru_first_frame_pos + (11850 * msu_frame_nm);
         /// Go at the beggining of the frame
         uint8_t msumr_frame_buffer[11850];
         input_file.seekg(frame_pos);
@@ -358,6 +355,7 @@ cimg_library::CImg<unsigned short> METEORDecoder::decodeChannel(int channel)
             pixel_buffer_4[3] = msumr_frame_buffer[pixelpos + 3];
             pixel_buffer_4[4] = msumr_frame_buffer[pixelpos + 4];
 
+            // Convert 5 bytes to 4 10-bits values
             uint16_t pixel1, pixel2, pixel3, pixel4;
             pixel1 = (pixel_buffer_4[0] << 2) | (pixel_buffer_4[1] >> 6);
             pixel2 = ((pixel_buffer_4[1] % 64) << 4) | (pixel_buffer_4[2] >> 4);
@@ -383,4 +381,13 @@ cimg_library::CImg<unsigned short> METEORDecoder::decodeChannel(int channel)
 int METEORDecoder::getTotalFrameCount()
 {
     return total_mru_frame_count;
+}
+
+// Perform a cleanup..
+void METEORDecoder::cleanupFiles()
+{
+    // Goodbye Manchester!
+    std::remove("temp.man");
+    // All the hard work... Welcome disk space?
+    std::remove("temp.msumr");
 }

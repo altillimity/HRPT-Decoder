@@ -17,13 +17,16 @@ private:
     long mru_first_frame_pos = -1;
     int total_mru_frame_count = 0;
     std::vector<long> msu_frame_starts;
+
 public:
     // Constructor
-    METEORDecoder(std::ifstream& input);
+    METEORDecoder(std::ifstream &input);
     // Function doing all the pre-frame work, that is, everything you'd need to do before being ready to read an image
     void processHRPT();
     // Function used to decode a choosen channel
     cimg_library::CImg<unsigned short> decodeChannel(int channel);
     // Return total fram count
     int getTotalFrameCount();
+    // File cleanup
+    void cleanupFiles();
 };

@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 
     if (satelliteArg.getValue() == "NOAA")
     {
-
+        // NOAA decoding!
         NOAADecoder decoder(input_file);
         decoder.processHRPT();
 
@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
     }
     else if (satelliteArg.getValue() == "METEOR")
     {
+        // METEOR Decoding! MN2x
         METEORDecoder decoder(input_file);
         decoder.processHRPT();
 
@@ -102,6 +103,8 @@ int main(int argc, char *argv[])
         {
             final_image = decoder.decodeChannel(valueChannel.getValue());
         }
+
+        decoder.cleanupFiles();
     }
 
     // Equalize and rotate if necessary
@@ -109,7 +112,7 @@ int main(int argc, char *argv[])
     if (optionSouthbound.getValue())
         final_image.rotate(180);
 
-    // Save final image
+    // Save our final image
     final_image.save_png(valueOutput.getValue().c_str());
     input_file.close();
 }
