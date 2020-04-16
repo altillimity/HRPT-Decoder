@@ -1,4 +1,5 @@
 #include <fstream>
+#include <vector>
 #define cimg_use_png
 #define cimg_display 0
 #include "CImg.h"
