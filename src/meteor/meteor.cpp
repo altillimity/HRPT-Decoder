@@ -16,7 +16,7 @@ static const uint8_t HRPT_SYNC[HRPT_SYNC_SIZE] = {0x1A, 0xCF, 0xFC, 0x1D};
 static const uint32_t HRPT_SYNC_BITS = HRPT_SYNC[0] << 24 | HRPT_SYNC[1] << 16 | HRPT_SYNC[2] << 8 | HRPT_SYNC[3];
 // MSU-MR Sync marker
 const int HRPT_SYNC_SIZE_MSU_MR = 8;
-static const uint16_t HRPT_SYNC_MSU_MR[HRPT_SYNC_SIZE_MSU_MR] = {0x0284, 0x016F, 0x035C, 0x019D, 0x020F, 0x0095};
+static const uint16_t HRPT_SYNC_MSU_MR[HRPT_SYNC_SIZE_MSU_MR] = {2, 24, 167, 163, 146, 221, 154, 191};
 
 // Constructor
 METEORDecoder::METEORDecoder(std::ifstream &input) : input_file{input}
