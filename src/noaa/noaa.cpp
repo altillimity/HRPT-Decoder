@@ -25,7 +25,7 @@ NOAADecoder::NOAADecoder(std::ifstream &input) : input_file{input}
 void NOAADecoder::processHRPT()
 {
     // Frame sync detection... Perfect markers everywhere so easy enough!
-    std::cout << "Detecting synchronization markers..." << std::endl;
+    std::cout << "Detecting synchronization markers..." << '\n';
 
     uint8_t ch[2];
     uint16_t data;
@@ -52,7 +52,7 @@ void NOAADecoder::processHRPT()
                 first_frame_pos = (long)input_file.tellg() - 12;
         }
     }
-    std::cout << "Done! Found " << total_frame_count << " sync markers!" << std::endl;
+    std::cout << "Done! Found " << total_frame_count << " sync markers!" << '\n';
 }
 
 // Function used to decode a choosen channel

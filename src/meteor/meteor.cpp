@@ -3,6 +3,13 @@
 #include <iostream>
 #include <cstdio>
 
+// Definitely still needs tuning
+#define TRANSPORT_THRESOLD_STATE_3 12
+#define TRANSPORT_THRESOLD_STATE_2 6
+#define TRANSPORT_THRESOLD_STATE_1 2
+#define TRANSPORT_THRESOLD_STATE_0 0
+#define MSU_MR_THRESOLD 13
+
 // Total world count
 const int HRPT_TRANSPORT_SIZE = 1024;
 // Channel count
@@ -16,7 +23,8 @@ static const uint8_t HRPT_SYNC[HRPT_SYNC_SIZE] = {0x1A, 0xCF, 0xFC, 0x1D};
 static const uint32_t HRPT_SYNC_BITS = HRPT_SYNC[0] << 24 | HRPT_SYNC[1] << 16 | HRPT_SYNC[2] << 8 | HRPT_SYNC[3];
 // MSU-MR Sync marker
 const int HRPT_SYNC_SIZE_MSU_MR = 8;
-static const uint16_t HRPT_SYNC_MSU_MR[HRPT_SYNC_SIZE_MSU_MR] = {2, 24, 167, 163, 146, 221, 154, 191};
+static const uint8_t HRPT_SYNC_MSU_MR[HRPT_SYNC_SIZE_MSU_MR] = {2, 24, 167, 163, 146, 221, 154, 191};
+static const uint64_t HRPT_SYNC_MSU_MR_BITS = (uint64_t)HRPT_SYNC_MSU_MR[0] << 56 | (uint64_t)HRPT_SYNC_MSU_MR[1] << 48 | (uint64_t)HRPT_SYNC_MSU_MR[2] << 40 | (uint64_t)HRPT_SYNC_MSU_MR[3] << 32 | (uint64_t)HRPT_SYNC_MSU_MR[4] << 24 | (uint64_t)HRPT_SYNC_MSU_MR[5] << 16 | (uint64_t)HRPT_SYNC_MSU_MR[6] << 8 | (uint64_t)HRPT_SYNC_MSU_MR[7];
 
 // Constructor
 METEORDecoder::METEORDecoder(std::ifstream &input) : input_file{input}
@@ -30,6 +38,17 @@ inline bool getBit(T data, int bit)
     return (data >> bit) & 1;
 }
 
+/*
+// Quick functon printing a variable in binary...
+// Kept for potential debugging purposes
+void bin(uint64_t n)
+{
+    uint64_t i;
+    for (i = (uint64_t)1 << 63; i > 0; i = i / 2)
+        (n & i) ? printf("1") : printf("0");
+}
+*/
+
 // Compare 2 32-bits values bit per bit
 int checkSyncMarker(uint32_t marker, uint32_t totest)
 {
@@ -37,8 +56,23 @@ int checkSyncMarker(uint32_t marker, uint32_t totest)
     for (int i = 31; i >= 0; i--)
     {
         bool markerBit, testBit;
-        markerBit = getBit(marker, i);
-        testBit = getBit(totest, i);
+        markerBit = getBit<uint32_t>(marker, i);
+        testBit = getBit<uint32_t>(totest, i);
+        if (markerBit != testBit)
+            errors++;
+    }
+    return errors;
+}
+
+// Compare 2 64-bits values bit per bit
+int checkMSUSyncMarker(uint64_t marker, uint64_t totest)
+{
+    int errors = 0;
+    for (int i = 63; i >= 0; i--)
+    {
+        bool markerBit, testBit;
+        markerBit = getBit<uint64_t>(marker, i);
+        testBit = getBit<uint64_t>(totest, i);
         if (markerBit != testBit)
             errors++;
     }
@@ -100,156 +134,165 @@ void METEORDecoder::processHRPT()
 
     // Searching for sync markers... Implementation of http://www.sat.cc.ua/data/CADU%20Frame%20Synchro.pdf
     // NOTE : Needs tuning? Is the implementation perfect? (Slight changes yield more frames)
-    uint32_t bitBuffer;
-    int bitsToIncrement = 1;
-    int errors = 0;
-    int sep_errors = 0;
-    int good = 0;
-    int state_2_bits_count = 0;
-    int last_state = 0;
-    for (long bitPos = 0; bitPos < fileContentBin.size() - 32; bitPos += bitsToIncrement)
     {
-        // Well... Easier to work with a 32-bit value here... Needs to be build from the ground up.
-        bitBuffer = fileContentBin[bitPos] << 31 |
-                    fileContentBin[bitPos + 1] << 30 |
-                    fileContentBin[bitPos + 2] << 29 |
-                    fileContentBin[bitPos + 3] << 28 |
-                    fileContentBin[bitPos + 4] << 27 |
-                    fileContentBin[bitPos + 5] << 26 |
-                    fileContentBin[bitPos + 6] << 25 |
-                    fileContentBin[bitPos + 7] << 24 |
-                    fileContentBin[bitPos + 8] << 23 |
-                    fileContentBin[bitPos + 9] << 22 |
-                    fileContentBin[bitPos + 10] << 21 |
-                    fileContentBin[bitPos + 11] << 20 |
-                    fileContentBin[bitPos + 12] << 19 |
-                    fileContentBin[bitPos + 13] << 18 |
-                    fileContentBin[bitPos + 14] << 17 |
-                    fileContentBin[bitPos + 15] << 16 |
-                    fileContentBin[bitPos + 16] << 15 |
-                    fileContentBin[bitPos + 17] << 14 |
-                    fileContentBin[bitPos + 18] << 13 |
-                    fileContentBin[bitPos + 19] << 12 |
-                    fileContentBin[bitPos + 20] << 11 |
-                    fileContentBin[bitPos + 21] << 10 |
-                    fileContentBin[bitPos + 22] << 9 |
-                    fileContentBin[bitPos + 23] << 8 |
-                    fileContentBin[bitPos + 24] << 7 |
-                    fileContentBin[bitPos + 25] << 6 |
-                    fileContentBin[bitPos + 26] << 5 |
-                    fileContentBin[bitPos + 27] << 4 |
-                    fileContentBin[bitPos + 28] << 3 |
-                    fileContentBin[bitPos + 29] << 2 |
-                    fileContentBin[bitPos + 30] << 1 |
-                    fileContentBin[bitPos + 31];
-
-        // State 0 : Searched bit-per-bit for a perfect sync marker. If one is found, we jump to state 6!
-        if (thresold_state == 0)
+        uint32_t bitBuffer;
+        int bitsToIncrement = 1;
+        int errors = 0;
+        int sep_errors = 0;
+        int good = 0;
+        int state_2_bits_count = 0;
+        int last_state = 0;
+        std::cout << "NO LOCK" << std::flush;
+        for (long bitPos = 0; bitPos < fileContentBin.size() - 32; bitPos += bitsToIncrement)
         {
-            if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
-            {
-                frame_count++;
-                frame_starts.push_back(bitPos);
-                thresold_state = 6;
-                bitsToIncrement = 1024 * 8;
-                errors = 0;
-                sep_errors = 0;
-                good = 0;
-            }
-        }
-        // State 6 : Each header is expect 1024 bytes away. Only 6 mistmatches tolerated.
-        // If 5 consecutive good frames are found, we hop to state 22, though, 5 consecutive
-        // errors (here's why errors is reset each time a frame is good) means reset to state 0
-        // 2 frame errors pushes us to state 2
-        else if (thresold_state == 6)
-        {
-            if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
-            {
-                frame_count++;
-                frame_starts.push_back(bitPos);
-                good++;
-                errors = 0;
+            // Well... Easier to work with a 32-bit value here... Needs to be build from the ground up.
+            bitBuffer = fileContentBin[bitPos] << 31 |
+                        fileContentBin[bitPos + 1] << 30 |
+                        fileContentBin[bitPos + 2] << 29 |
+                        fileContentBin[bitPos + 3] << 28 |
+                        fileContentBin[bitPos + 4] << 27 |
+                        fileContentBin[bitPos + 5] << 26 |
+                        fileContentBin[bitPos + 6] << 25 |
+                        fileContentBin[bitPos + 7] << 24 |
+                        fileContentBin[bitPos + 8] << 23 |
+                        fileContentBin[bitPos + 9] << 22 |
+                        fileContentBin[bitPos + 10] << 21 |
+                        fileContentBin[bitPos + 11] << 20 |
+                        fileContentBin[bitPos + 12] << 19 |
+                        fileContentBin[bitPos + 13] << 18 |
+                        fileContentBin[bitPos + 14] << 17 |
+                        fileContentBin[bitPos + 15] << 16 |
+                        fileContentBin[bitPos + 16] << 15 |
+                        fileContentBin[bitPos + 17] << 14 |
+                        fileContentBin[bitPos + 18] << 13 |
+                        fileContentBin[bitPos + 19] << 12 |
+                        fileContentBin[bitPos + 20] << 11 |
+                        fileContentBin[bitPos + 21] << 10 |
+                        fileContentBin[bitPos + 22] << 9 |
+                        fileContentBin[bitPos + 23] << 8 |
+                        fileContentBin[bitPos + 24] << 7 |
+                        fileContentBin[bitPos + 25] << 6 |
+                        fileContentBin[bitPos + 26] << 5 |
+                        fileContentBin[bitPos + 27] << 4 |
+                        fileContentBin[bitPos + 28] << 3 |
+                        fileContentBin[bitPos + 29] << 2 |
+                        fileContentBin[bitPos + 30] << 1 |
+                        fileContentBin[bitPos + 31];
 
-                if (good == 5)
-                {
-                    thresold_state = 22;
-                    good = 0;
-                    errors = 0;
-                }
-            }
-            else
+            // State 0 : Searches bit-per-bit for a perfect sync marker. If one is found, we jump to state 6!
+            if (thresold_state == TRANSPORT_THRESOLD_STATE_0)
             {
-                errors++;
-                sep_errors++;
-
-                if (errors == 5)
+                if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
                 {
-                    thresold_state = 0;
-                    bitsToIncrement = 1;
-                    errors = 0;
-                    sep_errors = 0;
-                    good = 0;
-                }
-
-                if (sep_errors == 2)
-                {
-                    thresold_state = 2;
-                    state_2_bits_count = 0;
-                    bitsToIncrement = 1;
+                    frame_count++;
+                    frame_starts.push_back(bitPos);
+                    thresold_state = TRANSPORT_THRESOLD_STATE_1;
+                    bitsToIncrement = 1024 * 8;
                     errors = 0;
                     sep_errors = 0;
                     good = 0;
                 }
             }
-        }
-        // State 2 : Goes back to bit-per-bit syncing... 3 frame scanned and we got back to state 0, 1 good and back to 6!
-        else if (thresold_state == 2)
-        {
-            if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
+            // State 1 : Each header is expect 1024 bytes away. Only 6 mistmatches tolerated.
+            // If 5 consecutive good frames are found, we hop to state 22, though, 5 consecutive
+            // errors (here's why errors is reset each time a frame is good) means reset to state 0
+            // 2 frame errors pushes us to state 2
+            else if (thresold_state == TRANSPORT_THRESOLD_STATE_1)
             {
-                frame_count++;
-                frame_starts.push_back(bitPos);
-                thresold_state = 6;
-                bitsToIncrement = 1024 * 8;
-                errors = 0;
-                sep_errors = 0;
-                good = 0;
-            }
-            else
-            {
-                state_2_bits_count++;
-                errors++;
-
-                if (state_2_bits_count >= 3072 * 8 /*&& errors <= 5*/)
+                if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
                 {
-                    thresold_state = 0;
-                    bitsToIncrement = 1;
+                    frame_count++;
+                    frame_starts.push_back(bitPos);
+                    good++;
+                    errors = 0;
+
+                    if (good == 5)
+                    {
+                        thresold_state = TRANSPORT_THRESOLD_STATE_3;
+                        good = 0;
+                        errors = 0;
+                    }
+                }
+                else
+                {
+                    errors++;
+                    sep_errors++;
+
+                    if (errors == 5)
+                    {
+                        thresold_state = TRANSPORT_THRESOLD_STATE_0;
+                        bitsToIncrement = 1;
+                        errors = 0;
+                        sep_errors = 0;
+                        good = 0;
+                    }
+
+                    if (sep_errors == 2)
+                    {
+                        thresold_state = TRANSPORT_THRESOLD_STATE_2;
+                        state_2_bits_count = 0;
+                        bitsToIncrement = 1;
+                        errors = 0;
+                        sep_errors = 0;
+                        good = 0;
+                    }
+                }
+            }
+            // State 2 : Goes back to bit-per-bit syncing... 3 frame scanned and we got back to state 0, 1 good and back to 6!
+            else if (thresold_state == TRANSPORT_THRESOLD_STATE_2)
+            {
+                if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
+                {
+                    frame_count++;
+                    frame_starts.push_back(bitPos);
+                    thresold_state = TRANSPORT_THRESOLD_STATE_1;
+                    bitsToIncrement = 1024 * 8;
                     errors = 0;
                     sep_errors = 0;
                     good = 0;
                 }
+                else
+                {
+                    state_2_bits_count++;
+                    errors++;
+
+                    if (state_2_bits_count >= 3072 * 8)
+                    {
+                        thresold_state = TRANSPORT_THRESOLD_STATE_0;
+                        bitsToIncrement = 1;
+                        errors = 0;
+                        sep_errors = 0;
+                        good = 0;
+                    }
+                }
             }
-        }
-        // State 3 : We assume perfect lock and allow very high mismatchs.
-        // 1 error and back to state 6
-        // Note : Lowering the thresold seems to yield better of a sync
-        else if (thresold_state == 22)
-        {
-            if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
+            // State 3 : We assume perfect lock and allow very high mismatchs.
+            // 1 error and back to state 6
+            // Note : Lowering the thresold seems to yield better of a sync
+            else if (thresold_state == TRANSPORT_THRESOLD_STATE_3)
             {
-                frame_count++;
-                frame_starts.push_back(bitPos);
+                if (checkSyncMarker(HRPT_SYNC_BITS, bitBuffer) <= thresold_state)
+                {
+                    frame_count++;
+                    frame_starts.push_back(bitPos);
+                }
+                else
+                {
+                    errors = 0;
+                    good = 0;
+                    sep_errors = 0;
+                    thresold_state = TRANSPORT_THRESOLD_STATE_1;
+                }
             }
-            else
+
+            if (last_state != thresold_state)
             {
-                errors = 0;
-                good = 0;
-                sep_errors = 0;
-                thresold_state = 6;
+                std::cout << (thresold_state > 0 ? "\rLOCKED " : "\rNO LOCK") << std::flush;
+                last_state = thresold_state;
             }
         }
     }
-
+    std::cout << '\n';
     std::cout << "Found " << frame_count << " valid sync markers!" << '\n';
 
     // Demultiplexing
@@ -299,21 +342,34 @@ void METEORDecoder::processHRPT()
 
     int i = 0;
     uint8_t ch2;
+    uint64_t currentScanning;
+    std::vector<uint8_t> msu_mr_buffer;
 
     // Here we can check for valid header only...
-    // NOTE : Sync machine system? Error thresold?
+    // Assuming byte-to-byte sync
+    // NOTE : Ajustable error thresold?
     while (input_file.get((char &)ch2))
     {
-        if (ch2 == HRPT_SYNC_MSU_MR[i])
-            i++;
-        else
-            i = 0;
+        // Read the file byte-per-byte
+        msu_mr_buffer.push_back(ch2);
+        i++;
 
-        // If all 6 matched, we got a frame!
-        if (i == HRPT_SYNC_SIZE_MSU_MR)
+        // We need at least 64 bits to work with...
+        if (msu_mr_buffer.size() < 8)
+            continue;
+
+        // Recompose a 64-bits value
+        currentScanning = (uint64_t)msu_mr_buffer[i - 8] << 56 |
+                          (uint64_t)msu_mr_buffer[i - 7] << 48 |
+                          (uint64_t)msu_mr_buffer[i - 6] << 40 |
+                          (uint64_t)msu_mr_buffer[i - 5] << 32 |
+                          (uint64_t)msu_mr_buffer[i - 4] << 24 |
+                          (uint64_t)msu_mr_buffer[i - 3] << 16 |
+                          (uint64_t)msu_mr_buffer[i - 2] << 8 |
+                          (uint64_t)msu_mr_buffer[i - 1];
+
+        if (checkMSUSyncMarker(HRPT_SYNC_MSU_MR_BITS, currentScanning) < MSU_MR_THRESOLD)
         {
-            // Reset i for next frame
-            i = 0;
             total_mru_frame_count++;
             msu_frame_starts.push_back((long)input_file.tellg() - HRPT_SYNC_SIZE_MSU_MR);
             if (mru_first_frame_pos == -1)
