@@ -2,6 +2,7 @@
 #include <iostream>
 #include "CCSDS/CCSDSSpacePacket.hh"
 
+// HRPT channel count
 const int HRPT_NUM_CHANNELS = 5;
 // Single image scan word size
 const int HRPT_SCAN_WIDTH = 2048;
@@ -19,6 +20,7 @@ const int HRPT_SYNC_SIZE = 4;
 // Sync marker
 static const uint8_t HRPT_SYNC[HRPT_SYNC_SIZE] = {0x1A, 0xCF, 0xFC, 0x1D};
 static const uint32_t HRPT_SYNC_BITS = HRPT_SYNC[0] << 24 | HRPT_SYNC[1] << 16 | HRPT_SYNC[2] << 8 | HRPT_SYNC[3];
+
 // Constructor
 METOPDecoder::METOPDecoder(std::ifstream &input) : input_file{input}
 {
@@ -50,20 +52,6 @@ METOPDecoder::METOPDecoder(std::ifstream &input) : input_file{input}
                 randm++;
         }
     }
-}
-
-void bin(uint8_t n)
-{
-    uint8_t i;
-    for (i = (uint8_t)1 << 7; i > 0; i = i / 2)
-        (n & i) ? printf("1") : printf("0");
-}
-
-void bin16(uint16_t n)
-{
-    uint16_t i;
-    for (i = (uint16_t)1 << 15; i > 0; i = i / 2)
-        (n & i) ? printf("1") : printf("0");
 }
 
 // Returns the asked bit!
@@ -105,8 +93,8 @@ uint8_t convertBitsToByteAtPos2(std::vector<bool> &bitvector, long pos)
 // Function doing all the pre-frame work, that is, everything you'd need to do before being ready to read an image
 void METOPDecoder::processHRPT()
 {
-    std::cout << "Detecting synchronization markers..." << '\n';
-
+    std::cout << "Reading file..." << '\n';
+    // Here we load the entire file into RAM... Should be fine!
     uint8_t bufferByte;
     std::vector<bool> fileContentBin;
     while (input_file.get((char &)bufferByte))
@@ -119,12 +107,12 @@ void METOPDecoder::processHRPT()
     }
     input_file.close();
 
-    std::cout << fileContentBin.size() << " bits" << std::endl;
+    std::cout << "Detecting synchronization markers..." << '\n';
 
+    // A nice sync machine just like METEOR! 
     int frame_count = 0;
     int thresold_state = 0;
     std::vector<long> frame_starts;
-
     {
         uint32_t bitBuffer;
         int bitsToIncrement = 1;
@@ -284,58 +272,45 @@ void METOPDecoder::processHRPT()
         }
     }
     std::cout << '\n';
-
     std::cout << "Done! Found " << frame_count << " sync markers!" << '\n';
+
+    std::cout << "Processing VCDUs and CCSDS frames..." << '\n';
 
     std::ofstream output_file = std::ofstream("temp.ccsds", std::ios::binary);
 
+    // We need to know where our frames are
     std::vector<long> ccsdsFrameStarts;
-    long totalbyteCount = 0;
+    // Count of VCID 9 frame founds
     int count9 = 0;
     for (long current_frame_pos : frame_starts)
     {
         std::vector<uint8_t> packetVec;
 
+        // Read everything but the header
         for (int u = 4; u < 1024; u++)
         {
             uint8_t dataByte = convertBitsToByteAtPos2(fileContentBin, current_frame_pos + u * 8);
-            dataByte = dataByte ^ d_rantab[u];
-
-            //output_file.put((char &)dataByte);
+            dataByte = dataByte ^ d_rantab[u]; // Derandomize
             packetVec.push_back(dataByte);
         }
 
+        int vcid = (packetVec[1] % 64); // Extract VCID from header
 
-
-        //int version = packetVec[0] >> 6;
-        //int scid = ((packetVec[0] % 64) << 2) | (packetVec[1] >> 6);
-        int vcid = (packetVec[1] % 64);
-
+        // Select only AHRR data
         if (vcid == 9)
         {
+            // Read M-PDU
             int mpdu_spare = (packetVec[8] >> 3);
             int mpdu_header = ((packetVec[8] % 8) << 8) | packetVec[9];
-            //bin(mpdu_spare);
-            //std::cout << " " << mpdu_spare <<'\n';
-            //bin16(mpdu_header);
-            //std::cout << " " << mpdu_header << '\n';
-
-            //output_file.put((char &)HRPT_SYNC[0]);
-            //output_file.put((char &)HRPT_SYNC[1]);
-            //output_file.put((char &)HRPT_SYNC[2]);
-            //output_file.put((char &)HRPT_SYNC[3]);
+            
+            // Write data into our buffer file
             for (int i = 0; i < 882; i++)
-            {
-
                 output_file.put((char &)packetVec[10 + i]);
-            }
 
+            // If there is a header, save its position
             if (mpdu_spare == 0)
-            {
                 ccsdsFrameStarts.push_back(count9 * 882 + mpdu_header);
-                //if(ccsdsFrameStarts[ccsdsFrameStarts.size() - 1] - ccsdsFrameStarts[ccsdsFrameStarts.size() - 2] > 12966);
-                //std::cout << "CCSDS frame starting at : " << /*totalbyteCount + mpdu_header << " --- " << ccsdsFrameStarts[ccsdsFrameStarts.size() - 1] - ccsdsFrameStarts[ccsdsFrameStarts.size() - 2]*/mpdu_header << '\n';
-            }
+
             count9++;
         }
     }
@@ -343,20 +318,25 @@ void METOPDecoder::processHRPT()
     std::cout << "Found " << count9 << " VCDUs with VCID 9" << '\n';
     std::cout << "Found " << ccsdsFrameStarts.size() << " CCDSDS frames headers declared" << '\n';
     output_file.close();
-    input_file = std::ifstream("temp.ccsds", std::ios::binary);
-    output_file = std::ofstream("temp.avhrr", std::ios::binary);
 
+    input_file = std::ifstream("temp.ccsds", std::ios::binary);
+
+    // Now reading CCSDS frames found earlier
     for (int frame_num = 0; frame_num < ccsdsFrameStarts.size(); frame_num++)
     {
         long frame_start = ccsdsFrameStarts[frame_num];
-        int frame_size = frame_num + 1 == ccsdsFrameStarts.size() ? 0 : ccsdsFrameStarts[frame_num + 1] - frame_start;
+        // Compute frame size
+        int frame_size = ccsdsFrameStarts[frame_num + 1] - frame_start;
 
+        // I guess there's no data if the frame has such a small length?
         if (frame_size <= 0)
             break;
 
+        // Buffer for CCSDS packet
         std::vector<uint8_t> ccsds_packet;
         input_file.seekg(frame_start);
 
+        // Fill our buffer
         for (int i = 0; i < frame_size; i++)
         {
             char ch;
@@ -364,6 +344,7 @@ void METOPDecoder::processHRPT()
             ccsds_packet.push_back(ch);
         }
 
+        // Parse the packet! This library makes it much easier...
         CCSDSSpacePacket truePacket;
         try
         {
@@ -371,34 +352,27 @@ void METOPDecoder::processHRPT()
         }
         catch (CCSDSSpacePacketException e)
         {
-            //std::cout << e.toString() << '\n';
-            continue;
+            continue; // Exit on error, we do not want to read corrupted frames since that's undefined behavior.
         }
 
-        int APID = truePacket.getPrimaryHeader()->getAPIDAsInteger(); //((ccsds_packet[0] % 8) << 8) | ccsds_packet[1];
+        // APID Checking!
+        int APID = truePacket.getPrimaryHeader()->getAPIDAsInteger();
 
+        // Only work on APID 103 and 104. Allowing both
         if (APID == 103 | APID == 104)
         {
             total_frame_count++;
 
-            //std::cout << truePacket.toString() << '\n';
-
+            // We want the payload... So here we go!
             std::vector<uint8_t> *userData = truePacket.getUserDataField();
-
-            output_file.put((char &)HRPT_SYNC[0]);
-            output_file.put((char &)HRPT_SYNC[1]);
-            output_file.put((char &)HRPT_SYNC[2]);
-            output_file.put((char &)HRPT_SYNC[3]);
-
-            for (uint8_t byte_temp : *userData)
-                output_file.put(byte_temp);
-
+            // Buffer for the current AVHRR scanline
             std::array<uint16_t, 10240> line_buffer;
 
+            // Apparently data is sometime shifted, what is indicated by the first byte's value...
+            // Probably doing it wrong? But it works... Needs finer tuning
             int pos = (*userData)[0] > 20 ? 80 : 58;
 
-            std::cout << (int) (*userData)[0] << '\n';
-
+            // Read a scanline. 10-bits values again, may need a rewrite...
             for (int i = 0; i < HRPT_SCAN_SIZE; i += 4)
             {
                 uint16_t pixel1, pixel2, pixel3, pixel4;
@@ -419,7 +393,7 @@ void METOPDecoder::processHRPT()
     }
     output_file.close();
 
-    std::cout << total_frame_count << " CCSDS frames of APID 103" << '\n';
+    std::cout << total_frame_count << " CCSDS frames of APID 103 or 104" << '\n';
 }
 
 // Function used to decode a choosen channel
@@ -460,4 +434,11 @@ cimg_library::CImg<unsigned short> METOPDecoder::decodeChannel(int channel)
 int METOPDecoder::getTotalFrameCount()
 {
     return total_frame_count;
+}
+
+// Perform a cleanup..
+void METOPDecoder::cleanupFiles()
+{
+    // Goodbye CCSDS!
+    std::remove("temp.ccsds");
 }

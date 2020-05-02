@@ -150,6 +150,8 @@ int main(int argc, char *argv[])
         {
             final_image = decoder.decodeChannel(valueChannel.getValue());
         }
+
+        decoder.cleanupFiles();
     }
 
     // Equalize and rotate if necessary
