@@ -305,6 +305,8 @@ void METOPDecoder::processHRPT()
             packetVec.push_back(dataByte);
         }
 
+
+
         //int version = packetVec[0] >> 6;
         //int scid = ((packetVec[0] % 64) << 2) | (packetVec[1] >> 6);
         int vcid = (packetVec[1] % 64);
@@ -393,7 +395,7 @@ void METOPDecoder::processHRPT()
 
             std::array<uint16_t, 10240> line_buffer;
 
-            int pos = (*userData)[0] == 158 /*MetOp-C*/ | (*userData)[0] == 71 /*MetOp-B*/ | (*userData)[0] == 38 /*MetOp-A*/ ? 80 : 58;
+            int pos = (*userData)[0] > 20 ? 80 : 58;
 
             std::cout << (int) (*userData)[0] << '\n';
 
