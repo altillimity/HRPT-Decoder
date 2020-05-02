@@ -67,6 +67,11 @@ int main(int argc, char *argv[])
         NOAADecoder decoder(input_file);
         decoder.processHRPT();
 
+        if(decoder.getTotalFrameCount() <= 0) {
+            std::cout << "No frame found! Exiting!" << '\n';
+            exit(0);
+        }
+
         final_image = cimg_library::CImg<unsigned short>(2048, decoder.getTotalFrameCount(), 1, 3);
 
         if (optionFalseColor.getValue())
@@ -91,6 +96,11 @@ int main(int argc, char *argv[])
 
         METEORDecoder decoder(input_file);
         decoder.processHRPT();
+
+        if(decoder.getTotalFrameCount() <= 0) {
+            std::cout << "No frame found! Exiting!" << '\n';
+            exit(0);
+        }
 
         final_image = cimg_library::CImg<unsigned short>(1572, decoder.getTotalFrameCount(), 1, 3);
 
@@ -119,7 +129,11 @@ int main(int argc, char *argv[])
         METOPDecoder decoder(input_file);
         decoder.processHRPT();
 
-        
+        if(decoder.getTotalFrameCount() <= 0) {
+            std::cout << "No frame found! Exiting!" << '\n';
+            exit(0);
+        }
+
         final_image = cimg_library::CImg<unsigned short>(2048, decoder.getTotalFrameCount(), 1, 3);
 
         if (optionFalseColor.getValue())
@@ -136,9 +150,6 @@ int main(int argc, char *argv[])
         {
             final_image = decoder.decodeChannel(valueChannel.getValue());
         }
-
-        //decoder.cleanupFiles();
-        
     }
 
     // Equalize and rotate if necessary
