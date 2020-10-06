@@ -16,6 +16,7 @@ int main(int argc, char *argv[])
     // Channel or mode selection
     TCLAP::ValueArg<int> valueChannel("c", "channel", "Channel to extract", true, 0, "channel");
     TCLAP::SwitchArg optionFalseColor("f", "falsecolor", "Produce false-color image");
+    TCLAP::SwitchArg optionDumpChannels("d", "dump", "Dump all channels in grayscale");
 
     // IO arguments
     TCLAP::ValueArg<std::string> valueInput("i", "input", "Raw input file", true, "", "file");
@@ -40,7 +41,11 @@ int main(int argc, char *argv[])
     cmd.add(satelliteArg);
     cmd.add(valueInput);
     cmd.add(valueOutput);
-    cmd.xorAdd(valueChannel, optionFalseColor);
+    std::vector<TCLAP::Arg*> outputMode;
+    outputMode.push_back(&valueChannel);
+    outputMode.push_back(&optionFalseColor);
+    outputMode.push_back(&optionDumpChannels);
+    cmd.xorAdd(outputMode);
     cmd.add(optionSouthbound);
     cmd.add(valueEqualize);
 
@@ -84,6 +89,18 @@ int main(int argc, char *argv[])
             final_image.draw_image(0, 0, 0, 1, img2);
             final_image.draw_image(0, 0, 0, 2, img1);
         }
+        else if(optionDumpChannels.getValue())
+        {
+            // NOAA HRPT has 5 channels
+            for(int i = 1; i <= 5; i++)
+            {
+                final_image = decoder.decodeChannel(i);
+                final_image.save_png((valueOutput.getValue() + "-" + std::to_string(i)).c_str());
+            }
+
+            input_file.close();
+            return 0;
+        }
         else
         {
             final_image = decoder.decodeChannel(valueChannel.getValue());
@@ -113,6 +130,18 @@ int main(int argc, char *argv[])
             final_image.draw_image(0, 0, 0, 0, img3);
             final_image.draw_image(0, 0, 0, 1, img2);
             final_image.draw_image(0, 0, 0, 2, img1);
+        }
+        else if(optionDumpChannels.getValue())
+        {
+            // Meteor HRPT has 6 channels
+            for(int i = 1; i <= 6; i++)
+            {
+                final_image = decoder.decodeChannel(i);
+                final_image.save_png((valueOutput.getValue() + "-" + std::to_string(i)).c_str());
+            }
+
+            input_file.close();
+            return 0;
         }
         else
         {
@@ -145,6 +174,18 @@ int main(int argc, char *argv[])
             final_image.draw_image(0, 0, 0, 0, img2);
             final_image.draw_image(0, 0, 0, 1, img2);
             final_image.draw_image(0, 0, 0, 2, img1);
+        }
+        else if(optionDumpChannels.getValue())
+        {
+            // MetOp HRPT has 5 channels
+            for(int i = 1; i <= 5; i++)
+            {
+                final_image = decoder.decodeChannel(i);
+                final_image.save_png((valueOutput.getValue() + "-" + std::to_string(i)).c_str());
+            }
+
+            input_file.close();
+            return 0;
         }
         else
         {
